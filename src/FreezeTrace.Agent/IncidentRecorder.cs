@@ -13,10 +13,11 @@ internal sealed class IncidentRecorder
     public async Task<string> SaveAsync(
         string trigger,
         IReadOnlyList<TelemetrySample> samples,
+        IReadOnlyList<WindowsEventRecord> events,
         CancellationToken cancellationToken)
     {
         var id = $"{DateTime.UtcNow:yyyyMMdd-HHmmss}-{Guid.NewGuid().ToString("N")[..8]}";
-        var findings = _analyzer.Analyze(samples);
+        var findings = _analyzer.Analyze(samples, events);
 
         var machine = new MachineMetadata(
             RuntimeInformation.OSDescription,
@@ -30,6 +31,7 @@ internal sealed class IncidentRecorder
             DateTimeOffset.UtcNow,
             trigger,
             samples,
+            events,
             findings,
             machine);
 
