@@ -24,7 +24,7 @@ public sealed class IncidentAnalyzerEventTests
         var findings = analyzer.Analyze([], events);
 
         var finding = Assert.Single(findings);
-        Assert.Equal("hardware-whea", finding.Id);
+        Assert.Equal("hardware-whea", finding.Category);
         Assert.Equal(FindingConfidence.High, finding.Confidence);
     }
 
@@ -47,7 +47,7 @@ public sealed class IncidentAnalyzerEventTests
         var findings = analyzer.Analyze([], events);
 
         var finding = Assert.Single(findings);
-        Assert.Equal("graphics-stack", finding.Id);
+        Assert.Equal("graphics-stack", finding.Category);
         Assert.Equal(FindingConfidence.High, finding.Confidence);
     }
 
@@ -70,7 +70,7 @@ public sealed class IncidentAnalyzerEventTests
         var findings = analyzer.Analyze([], events);
 
         var finding = Assert.Single(findings);
-        Assert.Equal("unexpected-shutdown", finding.Id);
+        Assert.Equal("unexpected-shutdown", finding.Category);
         Assert.Equal(FindingConfidence.Low, finding.Confidence);
         Assert.Contains(finding.CounterEvidence, x => x.Contains("not the root cause", StringComparison.OrdinalIgnoreCase));
     }
