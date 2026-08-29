@@ -1,0 +1,30 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FreezeTrace.Core", "src\FreezeTrace.Core\FreezeTrace.Core.csproj", "{30C23D5E-B1CC-40F5-B902-A71AC76456F7}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FreezeTrace.Agent", "src\FreezeTrace.Agent\FreezeTrace.Agent.csproj", "{1F553E7B-E1A1-40E9-9BC0-17D16E569C0C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FreezeTrace.Core.Tests", "tests\FreezeTrace.Core.Tests\FreezeTrace.Core.Tests.csproj", "{EFF79B57-FA6C-4BA1-A7D1-66047AE12532}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{30C23D5E-B1CC-40F5-B902-A71AC76456F7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{30C23D5E-B1CC-40F5-B902-A71AC76456F7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{30C23D5E-B1CC-40F5-B902-A71AC76456F7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{30C23D5E-B1CC-40F5-B902-A71AC76456F7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1F553E7B-E1A1-40E9-9BC0-17D16E569C0C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1F553E7B-E1A1-40E9-9BC0-17D16E569C0C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1F553E7B-E1A1-40E9-9BC0-17D16E569C0C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1F553E7B-E1A1-40E9-9BC0-17D16E569C0C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EFF79B57-FA6C-4BA1-A7D1-66047AE12532}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EFF79B57-FA6C-4BA1-A7D1-66047AE12532}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EFF79B57-FA6C-4BA1-A7D1-66047AE12532}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EFF79B57-FA6C-4BA1-A7D1-66047AE12532}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
