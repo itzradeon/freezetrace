@@ -12,9 +12,10 @@ if (!OperatingSystem.IsWindows())
 const int sampleIntervalSeconds = 1;
 const int preIncidentSeconds = 120;
 const int postIncidentSeconds = 15;
+const int eventBufferCapacity = 256;
 
 var buffer = new RingBuffer<TelemetrySample>(preIncidentSeconds / sampleIntervalSeconds);
-var eventBuffer = new RingBuffer<WindowsEventRecord>(512);
+var eventBuffer = new RingBuffer<WindowsEventRecord>(eventBufferCapacity);
 var collector = new WindowsSystemCollector();
 using var eventCollector = new WindowsEventCollector(eventBuffer);
 var recorder = new IncidentRecorder();
@@ -29,12 +30,13 @@ Console.CancelKeyPress += (_, eventArgs) =>
 };
 
 Console.WriteLine("""
-FreezeTrace Agent — v0.2 development
+FreezeTrace Agent — v0.2.0
 
 S  Save an incident (keeps last 2 minutes + 15 seconds after trigger)
 Q  Quit
 
-Telemetry and selected Windows events remain in memory until an incident is saved.
+FreezeTrace is local-first. Telemetry and selected Windows events stay in bounded memory buffers until an incident is explicitly saved.
+Automatic incident writes are intentionally disabled in v0.2.0 to avoid disrupting foreground workloads.
 """);
 
 var samplingTask = Task.Run(async () =>
@@ -130,7 +132,9 @@ while (!cts.IsCancellationRequested)
     var mergedEvents = beforeEvents
         .Concat(eventBuffer.Snapshot())
         .Where(x => x.Timestamp >= eventWindowStart && x.Timestamp <= eventWindowEnd)
-        .GroupBy(x => new { x.Timestamp, x.LogName, x.Provider, x.EventId })
+        .GroupBy(x => x.RecordId is long recordId
+            ? $"{x.LogName}:{recordId}"
+            : $"{x.Timestamp.UtcTicks}:{x.LogName}:{x.Provider}:{x.EventId}")
         .Select(g => g.First())
         .OrderBy(x => x.Timestamp)
         .ToArray();

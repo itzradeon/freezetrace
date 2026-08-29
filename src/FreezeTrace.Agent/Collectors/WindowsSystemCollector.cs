@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using FreezeTrace.Core.Models;
 
@@ -5,17 +6,38 @@ namespace FreezeTrace.Agent.Collectors;
 
 internal sealed class WindowsSystemCollector
 {
+    private static readonly TimeSpan ProcessRefreshInterval = TimeSpan.FromSeconds(5);
+
     private FileTimeSnapshot? _previousCpu;
+    private IReadOnlyList<ProcessSnapshot> _cachedProcesses = [];
+    private DateTimeOffset _nextProcessRefresh = DateTimeOffset.MinValue;
 
     public TelemetrySample Collect()
     {
+        var stopwatch = Stopwatch.StartNew();
+        var now = DateTimeOffset.UtcNow;
         var cpu = ReadCpuUsage();
         var memory = ReadMemory();
         var network = NetworkCollector.ReadTotals();
-        var processes = ProcessCollector.ReadTopProcesses(5);
+
+        if (now >= _nextProcessRefresh)
+        {
+            try
+            {
+                _cachedProcesses = ProcessCollector.ReadTopProcesses(5);
+            }
+            catch
+            {
+                // Process enumeration is best-effort. Keep the previous cache on failure.
+            }
+
+            _nextProcessRefresh = now.Add(ProcessRefreshInterval);
+        }
+
+        stopwatch.Stop();
 
         return new TelemetrySample(
-            DateTimeOffset.UtcNow,
+            now,
             cpu,
             memory.UsagePercent,
             memory.AvailableBytes,
@@ -23,7 +45,8 @@ internal sealed class WindowsSystemCollector
             network.Received,
             network.Sent,
             ForegroundProcessReader.TryGetForegroundProcessName(),
-            processes);
+            _cachedProcesses,
+            stopwatch.Elapsed.TotalMilliseconds);
     }
 
     private double ReadCpuUsage()

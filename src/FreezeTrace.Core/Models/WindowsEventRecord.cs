@@ -7,4 +7,6 @@ public sealed record WindowsEventRecord(
     int EventId,
     byte? Level,
     string? LevelName,
-    string? Message);
+    string? Message,
+    long? RecordId = null,
+    IReadOnlyDictionary<string, string>? Data = null);

@@ -9,4 +9,5 @@ public sealed record TelemetrySample(
     long NetworkBytesReceived,
     long NetworkBytesSent,
     string? ForegroundProcess,
-    IReadOnlyList<ProcessSnapshot> TopProcesses);
+    IReadOnlyList<ProcessSnapshot> TopProcesses,
+    double CollectionDurationMilliseconds = 0);

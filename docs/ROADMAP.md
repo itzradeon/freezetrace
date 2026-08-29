@@ -16,18 +16,24 @@
 - [ ] Validate on Windows hardware
 - [ ] Measure idle overhead
 
-## v0.2 — Windows events
+## v0.2 — Windows events and low-impact safeguards
 
 - [x] Event Log subscription
 - [x] Application crash / hang events
-- [x] Kernel-Power event 41 correlation
+- [x] Kernel-Power
 - [x] Display-driver events
-- [x] WHEA event detection
-- [ ] WHEA payload/component parser
-- [ ] Network adapter state events
+- [x] WHEA structured event-data parser
+- [x] Network profile connect / disconnect events
 - [x] Incident event timeline
-- [ ] Automatic incident triggers from critical events
-- [ ] Validate event subscriptions on AMD / NVIDIA / Intel systems
+- [x] Structured Application Error details
+- [x] Event record IDs for deduplication
+- [x] Bounded event payloads and RawData exclusion
+- [x] Process inventory throttled and cached
+- [x] Per-sample collector-duration measurement
+- [x] Unit tests for event correlation
+- [x] Automatic incident disk writes disabled by default
+- [ ] Validate Event Log coverage on AMD / NVIDIA / Intel hardware
+- [ ] Measure idle CPU/RAM overhead on real Windows PCs
 
 ## v0.3 — Hardware telemetry
 
@@ -61,13 +67,13 @@
 ## v0.6 — Correlation engine
 
 - [ ] Finding score system
-- [x] evidence / counter-evidence foundation
+- [ ] evidence / counter-evidence
 - [ ] CPU stall rule
-- [x] graphics-stack event rule
-- [x] memory-pressure rule
+- [ ] graphics-stack rule
+- [ ] memory-pressure rule
 - [ ] disk-stall rule
 - [ ] network-drop rule
-- [ ] driver-reset multi-signal rule
+- [ ] driver-reset rule
 - [ ] confidence calibration
 
 ## v0.7 — Incident similarity

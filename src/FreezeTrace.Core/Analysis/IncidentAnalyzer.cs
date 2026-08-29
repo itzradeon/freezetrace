@@ -17,7 +17,7 @@ public sealed class IncidentAnalyzer
         {
             AddMemoryFinding(samples, findings);
             AddCpuFinding(samples, findings);
-            AddNetworkFinding(samples, findings);
+            AddNetworkCounterFinding(samples, findings);
         }
 
         if (events is { Count: > 0 })
@@ -37,14 +37,16 @@ public sealed class IncidentAnalyzer
 
         if (whea.Length > 0)
         {
+            var confidence = whea.Any(x => x.Level is <= 2)
+                ? FindingConfidence.High
+                : FindingConfidence.Medium;
+
             findings.Add(new IncidentFinding(
                 "hardware-whea",
                 "Windows reported a hardware error",
-                FindingConfidence.High,
-                whea.Take(4)
-                    .Select(x => $"{x.Timestamp:O} — {x.Provider} event {x.EventId}: {Compact(x.Message)}")
-                    .ToArray(),
-                ["A WHEA event identifies a hardware/firmware error path, but the exact failing component still requires the event payload and repeated-pattern analysis."]));
+                confidence,
+                whea.Take(4).Select(DescribeWhea).ToArray(),
+                ["WHEA identifies a hardware/firmware error path, but FreezeTrace does not claim the exact root cause from a single event. Repeated incidents and hardware telemetry are still needed."]));
         }
 
         var graphics = events
@@ -58,9 +60,7 @@ public sealed class IncidentAnalyzer
                 "graphics-stack",
                 "Graphics driver or display stack interruption",
                 graphics.Any(x => x.EventId == 4101) ? FindingConfidence.High : FindingConfidence.Medium,
-                graphics.Take(5)
-                    .Select(x => $"{x.Timestamp:O} — {x.Provider} event {x.EventId}: {Compact(x.Message)}")
-                    .ToArray(),
+                graphics.Take(5).Select(DescribeGraphics).ToArray(),
                 ["A graphics event close to the incident is strong correlation, but it does not by itself prove whether the root cause is the driver, GPU, application, power delivery, or another component."]));
         }
 
@@ -75,9 +75,7 @@ public sealed class IncidentAnalyzer
                 "application-hang",
                 "Application stopped responding",
                 FindingConfidence.High,
-                hangs.Take(4)
-                    .Select(x => $"{x.Timestamp:O} — {Compact(x.Message)}")
-                    .ToArray(),
+                hangs.Take(4).Select(DescribeApplicationHang).ToArray(),
                 ["An application hang is a symptom. FreezeTrace still needs surrounding CPU, GPU, storage, memory and driver evidence to determine the likely cause."]));
         }
 
@@ -92,10 +90,23 @@ public sealed class IncidentAnalyzer
                 "application-crash",
                 "Application crash recorded by Windows",
                 FindingConfidence.High,
-                crashes.Take(4)
-                    .Select(x => $"{x.Timestamp:O} — {Compact(x.Message)}")
-                    .ToArray(),
-                ["The crash event confirms that a process failed, but the faulting module and exception code must be correlated with the rest of the incident before assigning root cause."]));
+                crashes.Take(4).Select(DescribeApplicationCrash).ToArray(),
+                ["The crash event confirms that a process failed. A faulting module or exception code is evidence, not automatic proof of the underlying root cause."]));
+        }
+
+        var networkDisconnects = events
+            .Where(IsNetworkDisconnect)
+            .OrderBy(x => x.Timestamp)
+            .ToArray();
+
+        if (networkDisconnects.Length > 0)
+        {
+            findings.Add(new IncidentFinding(
+                "network-disconnect",
+                "Windows recorded a network disconnect",
+                FindingConfidence.Medium,
+                networkDisconnects.Take(4).Select(DescribeNetworkDisconnect).ToArray(),
+                ["A Windows network-profile disconnect can be caused by the adapter, Wi-Fi/Ethernet link, router, roaming, sleep state, or an intentional network change. It does not by itself prove an ISP outage."]));
         }
 
         var kernelPower = events
@@ -116,6 +127,63 @@ public sealed class IncidentAnalyzer
         }
     }
 
+    private static string DescribeWhea(WindowsEventRecord e)
+    {
+        var details = JoinData(e, "ErrorSource", "ErrorType", "ApicId", "MCABank", "PrimaryDeviceName", "VendorID", "DeviceID");
+        return FormatEvent(e, details);
+    }
+
+    private static string DescribeGraphics(WindowsEventRecord e)
+    {
+        var details = JoinData(e, "DriverName", "DeviceName", "DeviceId", "param1");
+        return FormatEvent(e, details);
+    }
+
+    private static string DescribeApplicationHang(WindowsEventRecord e)
+    {
+        var details = JoinData(e, "AppName", "ExeFileName", "ProcessId", "ReportId");
+        return FormatEvent(e, details);
+    }
+
+    private static string DescribeApplicationCrash(WindowsEventRecord e)
+    {
+        var details = JoinData(e, "AppName", "ModuleName", "ExceptionCode", "FaultingOffset", "AppPath", "ModulePath");
+        return FormatEvent(e, details);
+    }
+
+    private static string DescribeNetworkDisconnect(WindowsEventRecord e)
+    {
+        var details = JoinData(e, "Name", "Description", "Guid", "Type", "State", "Category");
+        return FormatEvent(e, details);
+    }
+
+    private static string FormatEvent(WindowsEventRecord e, string? details)
+    {
+        var prefix = $"{e.Timestamp:O} — {e.Provider} event {e.EventId}";
+        if (!string.IsNullOrWhiteSpace(details))
+            return $"{prefix}: {details}";
+
+        if (!string.IsNullOrWhiteSpace(e.Message))
+            return $"{prefix}: {Compact(e.Message)}";
+
+        return prefix + ".";
+    }
+
+    private static string? JoinData(WindowsEventRecord e, params string[] keys)
+    {
+        if (e.Data is null || e.Data.Count == 0)
+            return null;
+
+        var values = new List<string>();
+        foreach (var key in keys)
+        {
+            if (e.Data.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value))
+                values.Add($"{key}={Compact(value)}");
+        }
+
+        return values.Count == 0 ? null : string.Join(", ", values);
+    }
+
     private static bool IsGraphicsEvent(WindowsEventRecord e)
     {
         if (e.EventId == 4101)
@@ -124,6 +192,10 @@ public sealed class IncidentAnalyzer
         string[] providers = ["Display", "nvlddmkm", "amdkmdag", "amdwddmg", "igfx", "Intel Graphics"];
         return providers.Any(p => e.Provider.Contains(p, StringComparison.OrdinalIgnoreCase));
     }
+
+    private static bool IsNetworkDisconnect(WindowsEventRecord e) =>
+        e.EventId == 10001 &&
+        e.Provider.Contains("NetworkProfile", StringComparison.OrdinalIgnoreCase);
 
     private static string Compact(string? value)
     {
@@ -176,7 +248,7 @@ public sealed class IncidentAnalyzer
             []));
     }
 
-    private static void AddNetworkFinding(
+    private static void AddNetworkCounterFinding(
         IReadOnlyList<TelemetrySample> samples,
         ICollection<IncidentFinding> findings)
     {
