@@ -4,17 +4,134 @@ namespace FreezeTrace.Core.Analysis;
 
 public sealed class IncidentAnalyzer
 {
-    public IReadOnlyList<IncidentFinding> Analyze(IReadOnlyList<TelemetrySample> samples)
+    public IReadOnlyList<IncidentFinding> Analyze(
+        IReadOnlyList<TelemetrySample> samples,
+        IReadOnlyList<WindowsEventRecord>? events = null)
     {
-        if (samples.Count == 0)
+        if (samples.Count == 0 && (events is null || events.Count == 0))
             return [];
 
         var findings = new List<IncidentFinding>();
-        AddMemoryFinding(samples, findings);
-        AddCpuFinding(samples, findings);
-        AddNetworkFinding(samples, findings);
+
+        if (samples.Count > 0)
+        {
+            AddMemoryFinding(samples, findings);
+            AddCpuFinding(samples, findings);
+            AddNetworkFinding(samples, findings);
+        }
+
+        if (events is { Count: > 0 })
+            AddWindowsEventFindings(events, findings);
 
         return findings;
+    }
+
+    private static void AddWindowsEventFindings(
+        IReadOnlyList<WindowsEventRecord> events,
+        ICollection<IncidentFinding> findings)
+    {
+        var whea = events
+            .Where(x => x.Provider.Contains("WHEA", StringComparison.OrdinalIgnoreCase))
+            .OrderBy(x => x.Timestamp)
+            .ToArray();
+
+        if (whea.Length > 0)
+        {
+            findings.Add(new IncidentFinding(
+                "hardware-whea",
+                "Windows reported a hardware error",
+                FindingConfidence.High,
+                whea.Take(4)
+                    .Select(x => $"{x.Timestamp:O} — {x.Provider} event {x.EventId}: {Compact(x.Message)}")
+                    .ToArray(),
+                ["A WHEA event identifies a hardware/firmware error path, but the exact failing component still requires the event payload and repeated-pattern analysis."]));
+        }
+
+        var graphics = events
+            .Where(IsGraphicsEvent)
+            .OrderBy(x => x.Timestamp)
+            .ToArray();
+
+        if (graphics.Length > 0)
+        {
+            findings.Add(new IncidentFinding(
+                "graphics-stack",
+                "Graphics driver or display stack interruption",
+                graphics.Any(x => x.EventId == 4101) ? FindingConfidence.High : FindingConfidence.Medium,
+                graphics.Take(5)
+                    .Select(x => $"{x.Timestamp:O} — {x.Provider} event {x.EventId}: {Compact(x.Message)}")
+                    .ToArray(),
+                ["A graphics event close to the incident is strong correlation, but it does not by itself prove whether the root cause is the driver, GPU, application, power delivery, or another component."]));
+        }
+
+        var hangs = events
+            .Where(x => x.EventId == 1002 || x.Provider.Equals("Application Hang", StringComparison.OrdinalIgnoreCase))
+            .OrderBy(x => x.Timestamp)
+            .ToArray();
+
+        if (hangs.Length > 0)
+        {
+            findings.Add(new IncidentFinding(
+                "application-hang",
+                "Application stopped responding",
+                FindingConfidence.High,
+                hangs.Take(4)
+                    .Select(x => $"{x.Timestamp:O} — {Compact(x.Message)}")
+                    .ToArray(),
+                ["An application hang is a symptom. FreezeTrace still needs surrounding CPU, GPU, storage, memory and driver evidence to determine the likely cause."]));
+        }
+
+        var crashes = events
+            .Where(x => x.EventId == 1000 || x.Provider.Equals("Application Error", StringComparison.OrdinalIgnoreCase))
+            .OrderBy(x => x.Timestamp)
+            .ToArray();
+
+        if (crashes.Length > 0)
+        {
+            findings.Add(new IncidentFinding(
+                "application-crash",
+                "Application crash recorded by Windows",
+                FindingConfidence.High,
+                crashes.Take(4)
+                    .Select(x => $"{x.Timestamp:O} — {Compact(x.Message)}")
+                    .ToArray(),
+                ["The crash event confirms that a process failed, but the faulting module and exception code must be correlated with the rest of the incident before assigning root cause."]));
+        }
+
+        var kernelPower = events
+            .Where(x => x.EventId == 41 && x.Provider.Contains("Kernel-Power", StringComparison.OrdinalIgnoreCase))
+            .OrderBy(x => x.Timestamp)
+            .ToArray();
+
+        if (kernelPower.Length > 0)
+        {
+            findings.Add(new IncidentFinding(
+                "unexpected-shutdown",
+                "Previous unexpected shutdown detected",
+                FindingConfidence.Low,
+                kernelPower.Take(2)
+                    .Select(x => $"{x.Timestamp:O} — Kernel-Power event 41.")
+                    .ToArray(),
+                ["Kernel-Power event 41 is recorded after Windows detects that the previous shutdown was not clean. It is evidence of an abnormal shutdown, not the root cause itself."]));
+        }
+    }
+
+    private static bool IsGraphicsEvent(WindowsEventRecord e)
+    {
+        if (e.EventId == 4101)
+            return true;
+
+        string[] providers = ["Display", "nvlddmkm", "amdkmdag", "amdwddmg", "igfx", "Intel Graphics"];
+        return providers.Any(p => e.Provider.Contains(p, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string Compact(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return "No formatted message available.";
+
+        var compact = string.Join(' ', value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        return compact.Length <= 220 ? compact : compact[..220] + "…";
     }
 
     private static void AddMemoryFinding(
