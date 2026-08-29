@@ -14,9 +14,13 @@ const int preIncidentSeconds = 120;
 const int postIncidentSeconds = 15;
 
 var buffer = new RingBuffer<TelemetrySample>(preIncidentSeconds / sampleIntervalSeconds);
+var eventBuffer = new RingBuffer<WindowsEventRecord>(512);
 var collector = new WindowsSystemCollector();
+using var eventCollector = new WindowsEventCollector(eventBuffer);
 var recorder = new IncidentRecorder();
 using var cts = new CancellationTokenSource();
+
+eventCollector.Start();
 
 Console.CancelKeyPress += (_, eventArgs) =>
 {
@@ -25,12 +29,12 @@ Console.CancelKeyPress += (_, eventArgs) =>
 };
 
 Console.WriteLine("""
-FreezeTrace Agent — early MVP
+FreezeTrace Agent — v0.2 development
 
 S  Save an incident (keeps last 2 minutes + 15 seconds after trigger)
 Q  Quit
 
-Telemetry remains in memory until an incident is saved.
+Telemetry and selected Windows events remain in memory until an incident is saved.
 """);
 
 var samplingTask = Task.Run(async () =>
@@ -43,7 +47,7 @@ var samplingTask = Task.Run(async () =>
             buffer.Add(sample);
 
             Console.Title =
-                $"FreezeTrace | CPU {sample.CpuUsagePercent:F0}% | RAM {sample.MemoryUsagePercent:F0}% | samples {buffer.Count}/{buffer.Capacity}";
+                $"FreezeTrace | CPU {sample.CpuUsagePercent:F0}% | RAM {sample.MemoryUsagePercent:F0}% | samples {buffer.Count}/{buffer.Capacity} | events {eventBuffer.Count}";
         }
         catch (Exception ex)
         {
@@ -65,7 +69,15 @@ while (!cts.IsCancellationRequested)
 {
     if (!Console.KeyAvailable)
     {
-        await Task.Delay(100, cts.Token).ContinueWith(_ => { });
+        try
+        {
+            await Task.Delay(100, cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            break;
+        }
+
         continue;
     }
 
@@ -81,6 +93,9 @@ while (!cts.IsCancellationRequested)
         continue;
 
     var before = buffer.Snapshot();
+    var beforeEvents = eventBuffer.Snapshot();
+    var triggeredAt = DateTimeOffset.UtcNow;
+
     Console.WriteLine($"[{DateTime.Now:T}] Incident triggered. Capturing {postIncidentSeconds}s after the event...");
 
     var after = new List<TelemetrySample>();
@@ -88,7 +103,15 @@ while (!cts.IsCancellationRequested)
 
     while (DateTimeOffset.UtcNow < end && !cts.IsCancellationRequested)
     {
-        await Task.Delay(TimeSpan.FromSeconds(1), cts.Token);
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(1), cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            break;
+        }
+
         var snapshot = buffer.Snapshot();
         if (snapshot.Count > 0)
             after.Add(snapshot[^1]);
@@ -101,10 +124,22 @@ while (!cts.IsCancellationRequested)
         .OrderBy(x => x.Timestamp)
         .ToArray();
 
+    var eventWindowStart = triggeredAt.AddSeconds(-preIncidentSeconds);
+    var eventWindowEnd = triggeredAt.AddSeconds(postIncidentSeconds + 2);
+
+    var mergedEvents = beforeEvents
+        .Concat(eventBuffer.Snapshot())
+        .Where(x => x.Timestamp >= eventWindowStart && x.Timestamp <= eventWindowEnd)
+        .GroupBy(x => new { x.Timestamp, x.LogName, x.Provider, x.EventId })
+        .Select(g => g.First())
+        .OrderBy(x => x.Timestamp)
+        .ToArray();
+
     try
     {
-        var path = await recorder.SaveAsync("manual", merged, cts.Token);
+        var path = await recorder.SaveAsync("manual", merged, mergedEvents, cts.Token);
         Console.WriteLine($"Incident saved: {path}");
+        Console.WriteLine($"Included {mergedEvents.Length} relevant Windows event(s).");
     }
     catch (Exception ex)
     {
