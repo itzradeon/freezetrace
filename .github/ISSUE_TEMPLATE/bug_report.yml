@@ -1,0 +1,32 @@
+name: Bug report
+description: Report a reproducible FreezeTrace problem
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Describe the problem and what you expected.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+    validations:
+      required: true
+
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      placeholder: Windows 11 24H2
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / incident details
+      description: Remove sensitive data before sharing.
+      render: shell
