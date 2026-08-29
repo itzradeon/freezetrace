@@ -5,5 +5,6 @@ public sealed record Incident(
     DateTimeOffset TriggeredAt,
     string Trigger,
     IReadOnlyList<TelemetrySample> Samples,
+    IReadOnlyList<WindowsEventRecord> Events,
     IReadOnlyList<IncidentFinding> Findings,
     MachineMetadata Machine);
