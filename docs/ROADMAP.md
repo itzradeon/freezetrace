@@ -18,13 +18,16 @@
 
 ## v0.2 — Windows events
 
-- [ ] Event Log subscription
-- [ ] Application crash / hang events
-- [ ] Kernel-Power
-- [ ] Display-driver events
-- [ ] WHEA parser
+- [x] Event Log subscription
+- [x] Application crash / hang events
+- [x] Kernel-Power event 41 correlation
+- [x] Display-driver events
+- [x] WHEA event detection
+- [ ] WHEA payload/component parser
 - [ ] Network adapter state events
-- [ ] Incident event timeline
+- [x] Incident event timeline
+- [ ] Automatic incident triggers from critical events
+- [ ] Validate event subscriptions on AMD / NVIDIA / Intel systems
 
 ## v0.3 — Hardware telemetry
 
@@ -58,13 +61,13 @@
 ## v0.6 — Correlation engine
 
 - [ ] Finding score system
-- [ ] evidence / counter-evidence
+- [x] evidence / counter-evidence foundation
 - [ ] CPU stall rule
-- [ ] graphics-stack rule
-- [ ] memory-pressure rule
+- [x] graphics-stack event rule
+- [x] memory-pressure rule
 - [ ] disk-stall rule
 - [ ] network-drop rule
-- [ ] driver-reset rule
+- [ ] driver-reset multi-signal rule
 - [ ] confidence calibration
 
 ## v0.7 — Incident similarity
